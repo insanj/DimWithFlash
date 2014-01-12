@@ -26,6 +26,11 @@
 -(void)preventIdleSleep;
 -(void)allowIdleSleep;
 -(void)setIdleTimerDisabled:(BOOL)disabled;
+
+-(void)cancelLockScreenIdleTimer;
+-(double)defaultLockScreenDimInterval;
+-(void)resetLockScreenIdleTimer;
+
 @end
 
 %hook SBBacklightController
@@ -42,15 +47,22 @@
 
 %new -(void)updateFlashlight:(NSNotification *)notification{
 	SBBacklightController *controller = [%c(SBBacklightController) sharedInstance];
+	NSTimer *idleTimer = MSHookIvar<NSTimer *>(controller, "_autoLockTimer");
 	if([notification.userInfo[@"flashlightOn"] boolValue]){
-		[controller setIdleTimerDisabled:YES];
-		[controller preventIdleSleep];
+		NSLog(@"---- if! %@", idleTimer);	//null
+		[controller cancelLockScreenIdleTimer];
+		//[controller setIdleTimerDisabled:YES];
+		//[controller preventIdleSleep];
 	}
 
 	else{
-		[controller setIdleTimerDisabled:NO];
-		[controller allowIdleSleep];
+		NSLog(@"---- else! %@", idleTimer);
+
+		//[controller setIdleTimerDisabled:NO];
+		//[controller allowIdleSleep];
 	}
+
+	NSLog(@"---- leaving! %@", idleTimer);
 }
 
 %end
