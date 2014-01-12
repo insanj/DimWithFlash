@@ -13,8 +13,7 @@
 
 %hook SBCCQuickLaunchSectionController
 -(void)_updateFlashlightPowerState{
-	NSNumber *flashlightOn = [NSNumber numberWithBool:MSHookIvar<BOOL>(self, "_flashlightOn")];
-	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"DFUpdateFlashlight" object:nil userInfo:@{@"flashlightOn" : flashlightOn}];
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"DFUpdateFlashlight" object:nil userInfo:@{@"flashlightOn" : @(self.flashlightOn)}];
 	%orig;
 }
 %end
@@ -24,6 +23,8 @@
 -(id)init;
 -(void)_lockScreenDimTimerFired;
 -(void)resetLockScreenIdleTimer;
+-(void)preventIdleSleep;
+-(void)allowIdleSleep;
 -(void)setIdleTimerDisabled:(BOOL)disabled;
 @end
 
@@ -40,10 +41,16 @@
 }
 
 %new -(void)updateFlashlight:(NSNotification *)notification{
-	if([notification.userInfo[@"flashlightOn"] boolValue])
-		[[%c(SBBacklightController) sharedInstance] setIdleTimerDisabled:YES];
-	else
-		[[%c(SBBacklightController) sharedInstance] setIdleTimerDisabled:NO];
+	SBBacklightController *controller = [%c(SBBacklightController) sharedInstance];
+	if([notification.userInfo[@"flashlightOn"] boolValue]){
+		[controller setIdleTimerDisabled:YES];
+		[controller preventIdleSleep];
+	}
+
+	else{
+		[controller setIdleTimerDisabled:NO];
+		[controller allowIdleSleep];
+	}
 }
 
 %end
