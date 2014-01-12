@@ -1,83 +1,49 @@
-/*@interface SBCCQuickLaunchSectionController {}
-        SBControlCenterButton *_torchButton;
-        SBControlCenterButton *_clockButton;
-        SBControlCenterButton *_calculatorButton;
-        SBControlCenterButton *_cameraButton;
-        NSMutableArray *_buttons;
-        AVFlashlight *_flashlight;
-        BOOL _ccVisible;
-        NSObject<OS_dispatch_queue> *_flashlightQueue;
+#import "substrate.h"
+
+@interface NSDistributedNotificationCenter : NSNotificationCenter
+@end
+
+@interface SBCCQuickLaunchSectionController{
         BOOL _flashlightOn;
 }
 @property(assign, nonatomic, getter=isFlashlightOn) BOOL flashlightOn;
-+ (Class)viewClass;
-- (id)init;
-- (void)_deviceBlockStateDidChangeNotification:(id)_deviceBlockState;
-- (void)_enableTorch:(BOOL)torch;*/
-
-@interface AVFlashlightInternal : NSObject{
-    BOOL overheated;
-    BOOL available;
-    float flashlightLevel;
-}
+- (void)_enableTorch:(BOOL)torch;
+- (void)_updateFlashlightPowerState;
 @end
 
-@interface AVFlashlight : NSObject{
-    AVFlashlightInternal *_internal;
+%hook SBCCQuickLaunchSectionController
+-(void)_updateFlashlightPowerState{
+	NSNumber *flashlightOn = [NSNumber numberWithBool:MSHookIvar<BOOL>(self, "_flashlightOn")];
+	[[NSDistributedNotificationCenter defaultCenter] postNotificationName:@"DFUpdateFlashlight" object:nil userInfo:@{@"flashlightOn" : flashlightOn}];
+	%orig;
 }
-
-@property(readonly, nonatomic) float flashlightLevel;
-@property(readonly, nonatomic, getter=isOverheated) BOOL overheated;
-@property(readonly, nonatomic, getter=isAvailable) BOOL available;
-
-+(BOOL)hasFlashlight;
-+(void)initialize;
--(void)handleNotification:(id)arg1 payload:(id)arg2;
-
--(id)init;
--(void)dealloc;
-
--(BOOL)setFlashlightLevel:(float)arg1 withError:(id *)arg2;
--(void)turnPowerOff;
--(BOOL)turnPowerOnWithError:(id *)arg1;
-
--(void)_refreshIsAvailable;
--(void)teardownFigRecorder;
--(BOOL)ensureFigRecorderWithError:(id *)arg1;
--(BOOL)bringupFigRecorderWithError:(id *)arg1;
-@end
+%end
 
 @interface SBBacklightController
 +(instancetype)sharedInstance;
-- (void)_lockScreenDimTimerFired;
-- (void)resetLockScreenIdleTimer;
+-(id)init;
+-(void)_lockScreenDimTimerFired;
+-(void)resetLockScreenIdleTimer;
+-(void)setIdleTimerDisabled:(BOOL)disabled;
 @end
 
 %hook SBBacklightController
-
--(void)_autoLockTimerFired:(id)fired{
-	AVFlashlight *torch = [[AVFlashlight alloc] init];
-	NSLog(@"----- altorch: %f", torch.flashlightLevel);
-	if(torch.flashlightLevel > 0.f)
-		[self resetLockScreenIdleTimer];
-	else
-		%orig;
+-(id)init{
+	SBBacklightController *original = %orig;
+	[[NSDistributedNotificationCenter defaultCenter] addObserver:original selector:@selector(updateFlashlight:) name:@"DFUpdateFlashlight" object:nil];
+	return original;
 }
--(void)_lockScreenDimTimerFired{
-	AVFlashlight *torch = [[AVFlashlight alloc] init];
-	NSLog(@"----- lstorch: %f", torch.flashlightLevel);
-	if(torch.flashlightLevel > 0.f)
-		[self resetLockScreenIdleTimer];
-	else
-		%orig;
 
-    /* legal way (maybe works)
-    Class captureDeviceClass = NSClassFromString(@"AVCaptureDevice");
-	AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
-	if(device.torchMode == AVCaptureTorchModeOn)
-		[self resetLockScreenIdleTimer];
+-(void)dealloc{
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
+	%orig;
+}
+
+%new -(void)updateFlashlight:(NSNotification *)notification{
+	if([notification.userInfo[@"flashlightOn"] boolValue])
+		[[%c(SBBacklightController) sharedInstance] setIdleTimerDisabled:YES];
 	else
-		%orig;*/
+		[[%c(SBBacklightController) sharedInstance] setIdleTimerDisabled:NO];
 }
 
 %end
